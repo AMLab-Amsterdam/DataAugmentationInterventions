@@ -5,7 +5,7 @@ by Maximilian Ilse (<ilse.maximilian@gmail.com>), Jakub M. Tomczak and Patrick F
 Overview
 --------
 PyTorch implementation of our paper "Designing Data Augmentation for Simulating Interventions":
-* Ilse, M., Tomczak, J. M., & Forré, P. (2020). Designing Data Augmentation for Simulating Interventions. Arxiv Link goes here ???
+* Ilse, M., Tomczak, J. M., & Forré, P. (2020). Designing Data Augmentation for Simulating Interventions. https://arxiv.org/abs/2005.01856
 
 Used modules
 ------------
@@ -40,7 +40,15 @@ Citation
 
 Please cite our paper if you use this code in your research:
 ```
-???
+@article{ilse_designing_2020,
+	title = {Designing {Data} {Augmentation} for {Simulating} {Interventions}},
+	url = {http://arxiv.org/abs/2005.01856},
+	urldate = {2020-05-06},
+	journal = {arXiv:2005.01856 [cs, stat]},
+	author = {Ilse, Maximilian and Tomczak, Jakub M. and Forré, Patrick},
+	month = may,
+	year = {2020},
+	note = {arXiv: 2005.01856}
 ```
 
 Acknowledgments
