@@ -90,4 +90,4 @@ for seed in range(50):
     result_list.append(mean_squared_error(y_test, y_pred))
 
 print(np.mean(result_list))
-print(np.std(result_list)/50)
+print(np.std(result_list)/np.sqrt(50))

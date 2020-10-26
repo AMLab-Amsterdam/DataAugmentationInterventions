@@ -15,20 +15,20 @@ import numpy as np
 
 from paper_experiments.PACS.model_alexnet_caffe import caffenet
 from paper_experiments.PACS.pacs_data_loader_data_augmentation import PacsDataDataAug
-from paper_experiments.PACS.pacs_data_loader import PacsData
+from paper_experiments.PACS.pacs_data_loader_norm import PacsData
 
 
 def train(args, model, device, train_loader, optimizer, epoch):
     model.train()
     loss_batch = 0
 
-    for batch_idx, (data, target, _) in enumerate(train_loader):
-        data, target = data.to(device), target.to(device)
-        _, target = target.max(dim=1)
+    for batch_idx, (data, _, domain) in enumerate(train_loader):
+        data, domain = data.to(device), domain.to(device)
+        _, domain = domain.max(dim=1)
 
         optimizer.zero_grad()
         output = model(data)
-        loss = torch.nn.CrossEntropyLoss(reduction='mean')(output, target)
+        loss = torch.nn.CrossEntropyLoss(reduction='mean')(output, domain)
         loss.backward()
         optimizer.step()
 
@@ -42,14 +42,14 @@ def test(args, model, device, test_loader, set_name):
     test_loss = 0
     correct = 0
     with torch.no_grad():
-        for data, target, _ in test_loader:
-            data, target = data.to(device), target.to(device)
-            _, target = target.max(dim=1)
+        for data, _, domain in test_loader:
+            data, domain = data.to(device), domain.to(device)
+            _, domain = domain.max(dim=1)
 
             output = model(data)
-            test_loss += torch.nn.CrossEntropyLoss(reduction='mean')(output, target) # sum up batch loss
+            test_loss += torch.nn.CrossEntropyLoss(reduction='mean')(output, domain)  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            correct += pred.eq(target.view_as(pred)).sum().item()
+            correct += pred.eq(domain.view_as(pred)).sum().item()
 
     # test_loss /= len(test_loader.dataset)
 
@@ -65,13 +65,15 @@ def main():
                         help='random seed (default: 1)')
     parser.add_argument('--batch-size', type=int, default=128,
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--epochs', type=int, default=30,
+    parser.add_argument('--epochs', type=int, default=200,
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='learning rate (default: 0.01)')
-    parser.add_argument('--test_domain', type=list, default=['sketch'],
+    parser.add_argument('--test_domain', type=list, default=['photo'],
                         help='domain used during test')
     parser.add_argument('--all_domains', type=list, default=['art_painting', 'cartoon', 'photo', 'sketch'],
+                        help='domain used during train')
+    parser.add_argument('--da', type=str, default='jitter', choices=['none', 'jitter'],
                         help='domain used during train')
 
     parser.add_argument('-dd', '--data_dir', type=str, default='./data', help='Directory to download data to and load data from')
@@ -82,7 +84,7 @@ def main():
 
     # Default config is above, Overridden by ENV_VARIABLES!!! or command line
     # Sweep interacts weirdly with some things...
-    wandb.init(project="CaffeNetValLossRandomGrey_" + args.test_domain[0], config=args)
+    wandb.init(project="CaffeDomain", config=args)
 
     # wandb.config.seed = args.seed
     # wandb.config.lr = args.lr
@@ -103,17 +105,26 @@ def main():
 
     device = torch.device("cuda")
 
-    model_name = 'caffenet_val_loss_random_grey_seed_' + str(config.seed) + '_test_domain_' + config.test_domain[0]
+    model_name = 'caffenet_val_acc_domain_classifier_da_' + config.da + '_seed_' + str(config.seed)
 
     kwargs = {'num_workers': 8, 'pin_memory': True} if use_cuda else {}
 
-    train_domain = [n for n in config.all_domains if n != config.test_domain[0]]
-    print(train_domain, config.test_domain)
+    # train_domain = [n for n in config.all_domains if n != config.test_domain[0]]
+    # print(train_domain, config.test_domain)
 
-    transforms_pacs_train = transforms.Compose([
-        transforms.RandomGrayscale(p=0.1),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+    if config.da == 'none':
+        transforms_pacs_train = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+
+    else:
+        transforms_pacs_train = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.ColorJitter(brightness=0.1, contrast=10.0, saturation=10.0, hue=0.5),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
 
     # transforms_pacs_test = transforms.Compose([
     #     transforms.ToTensor(),
@@ -122,21 +133,21 @@ def main():
 
     # Load supervised training
     train_loader = data_utils.DataLoader(
-        PacsDataDataAug('./kfold/', domain_list=train_domain, mode='train', transform=transforms_pacs_train),
+        PacsDataDataAug('./kfold/', domain_list=config.all_domains, mode='train', transform=transforms_pacs_train),
         batch_size=config.batch_size,
         shuffle=True, **kwargs)
     val_loader = data_utils.DataLoader(
-        PacsData('./kfold/', domain_list=train_domain, mode='val'),
+        PacsData('./kfold/', domain_list=config.all_domains, mode='val'),
         batch_size=config.batch_size,
         shuffle=False, **kwargs)
 
-    model = caffenet(7).to(device)
+    model = caffenet(4).to(device)
 
     optimizer = optim.SGD(model.parameters(), weight_decay=.0005, momentum=.9, nesterov=True, lr=config.lr)
     step_size = int(config.epochs * .8)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size)
 
-    best_val_loss = 1000000000
+    best_val_acc = 0.0
 
     for epoch in range(1, config.epochs + 1):
         # print('\n Epoch: ' + str(epoch))
@@ -149,19 +160,24 @@ def main():
         scheduler.step()
 
         # Save best
-        if val_loss <= best_val_loss:
-            best_val_loss = val_loss
+        if val_acc >= best_val_acc:
+            best_val_acc = val_acc
 
             torch.save(model, model_name + '.model')
             torch.save(args, model_name + '.config')
 
     # Test
     test_loader = data_utils.DataLoader(
-        PacsData('./kfold/', domain_list=config.test_domain, mode='test'),
+        PacsData('./kfold/', domain_list=config.all_domains, mode='test'),
         batch_size=config.batch_size,
         shuffle=False, **kwargs)
     model = torch.load(model_name + '.model').to(device)
     _, test_acc = test(config, model, device, test_loader, set_name='Test')
+
+    with open(model_name + '.txt', "w") as text_file:
+        text_file.write("Test Acc: " + str(test_acc))
+
+    wandb.run.summary["test_accuracy"] = test_acc
 
     with open(model_name + '.txt', "w") as text_file:
         text_file.write("Test Acc: " + str(test_acc))

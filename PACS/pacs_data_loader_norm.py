@@ -1,18 +1,20 @@
 import numpy as np
 
-from PIL import Image, ImageFilter
+from PIL import Image
 
 import torch
 import torch.utils.data as data_utils
 import torchvision.transforms as transforms
 
 
-class PacsDataDataAug(data_utils.Dataset):
-    def __init__(self, path, domain_list=None, mode='train', transform=None):
+class PacsData(data_utils.Dataset):
+    def __init__(self, path, domain_list=None, mode='train'):
         self.path = path
         self.domain_list = domain_list
         self.mode = mode
-        self.transform = transform
+
+        self.to_tensor = transforms.ToTensor()
+        self.normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
         self.train_data, self.train_labels, self.train_domain = self.get_data()
 
@@ -34,10 +36,11 @@ class PacsDataDataAug(data_utils.Dataset):
                 with Image.open(f) as img:
                     img = img.convert('RGB')
 
-            img_list.append(img)
+            img_list.append(self.normalize(self.to_tensor(img)))
+            # img_list.append((self.to_tensor(img)))
             label_list.append((np.float(labels[i]) - 1.0))
 
-        return img_list, torch.Tensor(np.array(label_list))
+        return torch.stack(img_list), torch.Tensor(np.array(label_list))
 
     def get_data(self):
         imgs_per_domain_list = []
@@ -66,9 +69,7 @@ class PacsDataDataAug(data_utils.Dataset):
             domain_per_domain_list.append(domain_labels)
 
         # One last cat
-        # train_imgs = torch.cat(imgs_per_domain_list).squeeze()
-        train_imgs = [item for sublist in imgs_per_domain_list for item in sublist]
-
+        train_imgs = torch.cat(imgs_per_domain_list).squeeze()
         train_labels = torch.cat(labels_per_domain_list).long()
         train_domains = torch.cat(domain_per_domain_list).long()
 
@@ -89,68 +90,79 @@ class PacsDataDataAug(data_utils.Dataset):
         y = self.train_labels[index]
         d = self.train_domain[index]
 
-        return self.transform(x), y, d
+        return x, y, d
 
 
 if __name__ == "__main__":
     from torchvision.utils import save_image
-    import torchvision
-    import PIL
 
     seed = 0
-    da = 'saturation'
     torch.manual_seed(seed)
     torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
 
-    kwargs = {'num_workers': 8, 'pin_memory': True}
-
     # Train
     domain_list_train = ['art_painting', 'cartoon', 'photo', 'sketch']
 
-    transform_dict = {'brightness': torchvision.transforms.ColorJitter(brightness=1.0, contrast=0, saturation=0, hue=0),
-                      'contrast': torchvision.transforms.ColorJitter(brightness=0, contrast=10.0, saturation=0, hue=0),
-                      'saturation': torchvision.transforms.ColorJitter(brightness=0, contrast=0, saturation=10.0, hue=0),
-                      'hue': torchvision.transforms.ColorJitter(brightness=0, contrast=0, saturation=0, hue=0.5),
-                      'rotation': torchvision.transforms.RandomAffine([0, 359], translate=None, scale=None, shear=None,
-                                                                      resample=PIL.Image.BILINEAR, fillcolor=0),
-                      'translate': torchvision.transforms.RandomAffine(0, translate=[0.2, 0.2], scale=None, shear=None,
-                                                                       resample=PIL.Image.BILINEAR, fillcolor=0),
-                      'scale': torchvision.transforms.RandomAffine(0, translate=None, scale=[0.8, 1.2], shear=None,
-                                                                   resample=PIL.Image.BILINEAR, fillcolor=0),
-                      'shear': torchvision.transforms.RandomAffine(0, translate=None, scale=None,
-                                                                   shear=[-10., 10., -10., 10.],
-                                                                   resample=PIL.Image.BILINEAR, fillcolor=0),
-                      'vflip': torchvision.transforms.RandomVerticalFlip(p=0.5),
-                      'hflip': torchvision.transforms.RandomHorizontalFlip(p=0.5),
-                      'none': None,
-                      }
-
-    transforms_pacs = transforms.Compose([
-        transform_dict[da],
-        transforms.ToTensor(),
-    ])
-
     train_loader = data_utils.DataLoader(
-        PacsDataDataAug('./kfold/', domain_list=domain_list_train, mode='train', transform=transforms_pacs),
+        PacsData('./kfold/', domain_list=domain_list_train, mode='train'),
         batch_size=128,
-        shuffle=True,
-        **kwargs)
+        shuffle=True)
 
     y_array = np.zeros(7)
     d_array = np.zeros(4)
 
     for i, (x, y, d) in enumerate(train_loader):
 
-        # y_array += y.sum(dim=0).cpu().numpy()
-        # d_array += d.sum(dim=0).cpu().numpy()
+        y_array += y.sum(dim=0).cpu().numpy()
+        d_array += d.sum(dim=0).cpu().numpy()
 
         if i == 0:
-            n = min(x.size(0), 48)
+            n = min(x.size(0), 36)
             save_image(x[:n].cpu(),
-                       '__pacs_train_' + da + '.png', nrow=8)
+                       'pacs_train.png', nrow=6)
 
-            break
+    print(y_array, d_array)
+    print('\n')
+
+    train_loader = data_utils.DataLoader(
+        PacsData('./kfold/', domain_list=domain_list_train, mode='val'),
+        batch_size=128,
+        shuffle=True)
+
+    y_array = np.zeros(7)
+    d_array = np.zeros(4)
+
+    for i, (x, y, d) in enumerate(train_loader):
+
+        y_array += y.sum(dim=0).cpu().numpy()
+        d_array += d.sum(dim=0).cpu().numpy()
+
+        if i == 0:
+            n = min(x.size(0), 36)
+            save_image(x[:n].cpu(),
+                       'pacs_val.png', nrow=6)
+
+    print(y_array, d_array)
+    print('\n')
+
+    train_loader = data_utils.DataLoader(
+        PacsData('./kfold/', domain_list=domain_list_train, mode='test'),
+        batch_size=128,
+        shuffle=True)
+
+    y_array = np.zeros(7)
+    d_array = np.zeros(4)
+
+    for i, (x, y, d) in enumerate(train_loader):
+
+        y_array += y.sum(dim=0).cpu().numpy()
+        d_array += d.sum(dim=0).cpu().numpy()
+
+        if i == 0:
+            n = min(x.size(0), 36)
+            save_image(x[:n].cpu(),
+                       'pacs_test.png', nrow=6)
 
     print(y_array, d_array)
     print('\n')

@@ -1,11 +1,11 @@
-Designing Data Augmentation for Simulating Interventions
+Selecting Data Augmentation for Simulating Interventions
 ================================================
 by Maximilian Ilse (<ilse.maximilian@gmail.com>), Jakub M. Tomczak and Patrick Forré
 
 Overview
 --------
-PyTorch implementation of our paper "Designing Data Augmentation for Simulating Interventions":
-* Ilse, M., Tomczak, J. M., & Forré, P. (2020). Designing Data Augmentation for Simulating Interventions. https://arxiv.org/abs/2005.01856
+PyTorch implementation of our paper "Selecting Data Augmentation for Simulating Interventions":
+* Ilse, M., Tomczak, J. M., & Forré, P. (2020). Selecting Data Augmentation for Simulating Interventions. https://arxiv.org/abs/2005.01856
 
 Used modules
 ------------
@@ -40,8 +40,8 @@ Citation
 
 Please cite our paper if you use this code in your research:
 ```
-@article{ilse_designing_2020,
-	title = {Designing {Data} {Augmentation} for {Simulating} {Interventions}},
+@article{ilse_selecting_2020,
+	title = {Selecting {Data} {Augmentation} for {Simulating} {Interventions}},
 	url = {http://arxiv.org/abs/2005.01856},
 	urldate = {2020-05-06},
 	journal = {arXiv:2005.01856 [cs, stat]},

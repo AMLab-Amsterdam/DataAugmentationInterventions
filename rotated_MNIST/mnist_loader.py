@@ -19,7 +19,7 @@ class MnistRotated(data_utils.Dataset):
         self.to_pil = transforms.ToPILImage()
         self.to_tensor = transforms.ToTensor()
         self.y_to_categorical = torch.eye(10)
-        self.d_to_categorical = torch.eye(3)
+        self.d_to_categorical = torch.eye(4)
 
         self.imgs, self.labels = self._get_data()
 
@@ -51,9 +51,10 @@ class MnistRotated(data_utils.Dataset):
         d = np.random.choice(range(len(self.thetas)))
 
         if self.transform: # data augmentation random rotation by +- 90 degrees
-            random_rotation = np.random.choice([-30.0, 0.0, 30.0])
-            return self.to_tensor(transforms.functional.rotate(x, self.thetas[d] + random_rotation)), self.y_to_categorical[y], \
-                   self.d_to_categorical[self.d_label]
+            pass
+            # random_rotation = np.random.randint(0, 360, 1)
+            # return self.to_tensor(transforms.functional.rotate(x, self.thetas[d] + random_rotation)), self.y_to_categorical[y], \
+            #        self.d_to_categorical[self.d_label]
         else:
             return self.to_tensor(transforms.functional.rotate(x, self.thetas[d])), self.y_to_categorical[y], self.d_to_categorical[self.d_label]
 
@@ -67,39 +68,27 @@ if __name__ == "__main__":
     torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
 
-    # mnist_90 = MnistRotated('../dataset/', train=False, thetas=[90.0], d_label=0)
-    # train_loader = data_utils.DataLoader(mnist_90,
-    #                                      batch_size=100,
-    #                                      shuffle=False)
-    #
-    # y_array = np.zeros(10)
-    # d_array = np.zeros(3)
-    #
-    # for i, (x, y, d) in enumerate(train_loader):
-    #     y_array += y.sum(dim=0).cpu().numpy()
-    #     d_array += d.sum(dim=0).cpu().numpy()
-    #
-    #     if i == 0:
-    #         n = min(x.size(0), 36)
-    #         comparison = x[:n].view(-1, 1, 28, 28)
-    #         save_image(comparison.cpu(),
-    #                    'rotated_mnist.png', nrow=6)
-    #
-    # print(y_array, d_array)
+    mnist_30 = MnistRotated('../dataset/', train=True, thetas=[30.0], d_label=0, transform=False)
+    mnist_60 = MnistRotated('../dataset/', train=True, thetas=[60.0], d_label=1, transform=False)
+    mnist_90 = MnistRotated('../dataset/', train=True, thetas=[90.0], d_label=2, transform=False)
 
-    mnist_0 = MnistRotated('../dataset/', train=False, thetas=[0.0], d_label=0)
-    train_loader = data_utils.DataLoader(mnist_0,
-                                         batch_size=1000,
-                                         shuffle=False)
+    mnist = data_utils.ConcatDataset([mnist_30, mnist_60, mnist_90])
+
+    train_loader = data_utils.DataLoader(mnist,
+                                         batch_size=100,
+                                         shuffle=True)
 
     for i, (x, y, d) in enumerate(train_loader):
+        _, d = d.max(dim=1)
 
-        y = y.argmax(-1)
 
-        index = y ==5
-        x = x[index]
+        # y = y.argmax(-1)
+        #
+        # index = y == 5
+        # x = x[index]
 
-        if i == 0:
-            comparison = x[82].view(-1, 1, 28, 28)
-            save_image(comparison.cpu(),
-                       'rotated_mnist_2.png', nrow=1)
+        save_image(x.cpu(),
+                   'rotated_mnist.png', nrow=1)
+
+        print(d)
+        break

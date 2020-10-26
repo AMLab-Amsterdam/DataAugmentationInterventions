@@ -19,7 +19,7 @@ class MnistRotatedDist(data_utils.Dataset):
         self.to_pil = transforms.ToPILImage()
         self.to_tensor = transforms.ToTensor()
         self.y_to_categorical = torch.eye(10)
-        self.d_to_categorical = torch.eye(3)
+        self.d_to_categorical = torch.eye(4)
 
         self.imgs, self.labels = self._get_data()
 
